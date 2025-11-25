@@ -1,0 +1,11 @@
+[project]
+name = "pelletizer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.3.5",
+    "open3d>=0.19.0",
+    "pyvista>=0.46.4",
+]
