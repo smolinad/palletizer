@@ -5,6 +5,7 @@ from pathlib import Path
 import glob
 import os
 import json
+import cv2
 
 def load_point_cloud(path):
     """Load a point cloud from a PLY file."""
@@ -86,70 +87,97 @@ def cluster_boxes(pcd, floor_plane, eps=0.08, min_points=50):
         
     return boxes
 
-def get_top_face_centroid(box_pcd):
+def get_box_details(box_pcd, floor_plane):
     """
-    Calculate the centroid of the top face using OBB and apply dimension checks.
+    Calculate the centroid and 3D bounding rectangle of the top face.
+    The rectangle is constrained to be parallel to the floor plane.
     """
-    if len(box_pcd.points) == 0:
-        return None
+    if len(box_pcd.points) < 4:
+        return None, None
 
-    # Compute OBB for the cluster
-    obb = box_pcd.get_oriented_bounding_box()
-    center = obb.center
-    R = obb.R # Rotation matrix
-    extent = obb.extent # Extent along each axis of the OBB
-
-    # Determine which axis is vertical (aligned with Z-axis)
-    # We assume Z-axis is up (0,0,1)
-    # Actually, we should probably use the floor normal if we had it passed here,
-    # but Z-axis is usually a good enough approximation for the OBB vertical axis 
-    # since the OBB is computed on the isolated cluster.
+    points = np.asarray(box_pcd.points)
+    
+    # 1. Align points with Z-axis based on floor normal
+    floor_normal = np.array(floor_plane[:3])
+    floor_normal = floor_normal / np.linalg.norm(floor_normal)
+    
+    # Create rotation matrix to align floor_normal with Z=[0,0,1]
     z_axis = np.array([0, 0, 1])
     
-    # Dot product of OBB axes with Z-axis to find the vertical axis
-    # The axis with the largest absolute dot product is the vertical one
-    dots = np.abs(np.dot(R.T, z_axis)) # R.T gives the OBB's local axes
-    vertical_axis_idx = np.argmax(dots)
-
-    # We need to check the sign of the dot product to know if it's + or - direction
-    # This determines if the top face is +extent/2 or -extent/2 along the vertical OBB axis
-    # Use the original dot product (without abs) to get the sign
-    original_dots = np.dot(R.T, z_axis)
-    direction_sign = np.sign(original_dots[vertical_axis_idx])
+    # Rotation calculation
+    # v = cross(a, b)
+    # s = ||v||
+    # c = dot(a, b)
+    # R = I + [v]x + [v]x^2 * (1-c)/s^2
     
-    # If dot is 0 (unlikely for argmax > 0), default to 1
-    if direction_sign == 0:
-        direction_sign = 1
+    a = floor_normal
+    b = z_axis
+    v = np.cross(a, b)
+    c = np.dot(a, b)
+    
+    if np.linalg.norm(v) < 1e-6:
+        # Already aligned or opposite
+        if c > 0:
+            R = np.eye(3)
+        else:
+            # 180 degree rotation around X
+            R = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    else:
+        s = np.linalg.norm(v)
+        vx = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+        R = np.eye(3) + vx + (vx @ vx) * ((1 - c) / (s ** 2))
         
-    # Filter by planar dimensions (remove small noise clusters)
-    planar_indices = [i for i in range(3) if i != vertical_axis_idx]
-    dim1 = extent[planar_indices[0]]
-    dim2 = extent[planar_indices[1]]
+    # Rotate points
+    points_rot = points @ R.T
     
-    # Minimum dimension threshold (e.g., 8cm)
+    # 2. Project to 2D (flatten Z)
+    z_mean = np.mean(points_rot[:, 2])
+    points_flat = points_rot.copy()
+    points_flat[:, 2] = 0
+    
+    # 3. Compute 2D OBB using OpenCV minAreaRect (Rotating Calipers)
+    # This guarantees the minimum area rectangle, unlike PCA-based OBB
+    points_2d = points_flat[:, :2].astype(np.float32)
+    
+    # cv2.minAreaRect returns ((center_x, center_y), (width, height), angle)
+    rect = cv2.minAreaRect(points_2d)
+    ((cx, cy), (w, h), angle) = rect
+    
+    # 4. Filter by dimensions
+    # Sort dimensions to be consistent
+    dims = sorted([w, h])
+    dim1, dim2 = dims[0], dims[1]
+    
     if dim1 < 0.08 or dim2 < 0.08:
         print(f"  Rejected candidate with dimensions {dim1:.3f} x {dim2:.3f}")
-        return None
+        return None, None
         
-    # The vector from center to top face center
-    # axis_vector is R[:, vertical_axis_idx] (the column of R corresponding to the vertical axis)
-    offset_vector = direction_sign * (extent[vertical_axis_idx] / 2.0) * R[:, vertical_axis_idx]
+    # 5. Get Corners
+    box_corners_2d = cv2.boxPoints(rect)
+    # box_corners_2d is (4, 2)
     
-    top_face_centroid = center + offset_vector
+    # Add Z coordinate (z_mean)
+    corners_2d_with_z = np.hstack([box_corners_2d, np.full((4, 1), z_mean)])
     
-    return top_face_centroid
+    # 6. Rotate back to 3D
+    # points_rot = points @ R.T  => points = points_rot @ R
+    corners_3d = corners_2d_with_z @ R
+    
+    # Centroid is the center from minAreaRect transformed back
+    center_2d_with_z = np.array([cx, cy, z_mean])
+    centroid_3d = center_2d_with_z @ R
+    
+    return centroid_3d, corners_3d
 
-def visualize_results(original_pcd, boxes, centroids):
+def visualize_results(original_pcd, boxes, centroids, corners_list):
     """Visualize the results using PyVista."""
     
     plotter = pv.Plotter()
     
-    # Add original point cloud (maybe just the floor or everything faintly)
-    # Converting Open3D to PyVista
+    # Add original point cloud
     original_points = np.asarray(original_pcd.points)
     original_colors = np.asarray(original_pcd.colors)
     
-    # Create PyVista point cloud
     cloud = pv.PolyData(original_points)
     if len(original_colors) > 0:
         cloud['RGB'] = original_colors
@@ -157,7 +185,7 @@ def visualize_results(original_pcd, boxes, centroids):
     else:
         plotter.add_mesh(cloud, color='gray', point_size=1, style='points_gaussian', opacity=0.3)
 
-    # Add detected boxes with different colors
+    # Add detected boxes
     colors = ['red', 'green', 'blue', 'yellow', 'cyan', 'magenta', 'orange']
     
     for i, box in enumerate(boxes):
@@ -169,7 +197,34 @@ def visualize_results(original_pcd, boxes, centroids):
         
         # Add centroid
         if i < len(centroids) and centroids[i] is not None:
-            plotter.add_mesh(pv.Sphere(radius=0.01, center=centroids[i]), color='white', label=f"Centroid {i}")
+            plotter.add_mesh(pv.Sphere(radius=0.01, center=centroids[i]), color='white')
+            
+        # Add wireframe rectangle
+        if i < len(corners_list) and corners_list[i] is not None:
+            corners = corners_list[i]
+            # Create lines: 0-1, 1-2, 2-3, 3-0
+            # PyVista lines format: [n_points, p1, p2, ..., n_points, p3, p4, ...]
+            # But we can use pv.Line or just construct a mesh
+            
+            # Order is 0,1,2,3 around the center from our construction
+            # But let's verify order. Our construction: (+,+), (-,+), (-,-), (+,-).
+            # This is circular order (0->1->2->3->0).
+            
+            lines = np.array([
+                [2, 0, 1],
+                [2, 1, 2],
+                [2, 2, 3],
+                [2, 3, 0]
+            ]).flatten()
+            
+            # Need to adjust indices to be absolute? No, relative to the points we pass
+            # Wait, PyVista PolyData constructor takes (points, lines)
+            # lines array: [2, 0, 1, 2, 1, 2, 2, 2, 3, 2, 3, 0]
+            
+            rect_poly = pv.PolyData(corners)
+            rect_poly.lines = lines
+            
+            plotter.add_mesh(rect_poly, color='white', line_width=3, style='wireframe')
 
     if len(boxes) > 0:
         plotter.add_legend()
@@ -209,19 +264,23 @@ def main():
         # 5. Calculate Centroids and Filter
         valid_boxes = []
         valid_centroids = []
+        valid_corners = []
+        
         for box in boxes:
-            centroid = get_top_face_centroid(box)
+            centroid, corners = get_box_details(box, floor_plane)
             if centroid is not None:
                 valid_boxes.append(box)
                 valid_centroids.append(centroid)
+                valid_corners.append(corners)
                 print(f"  Box centroid: {centroid}")
             
         # 6. Save Centroids to JSON
         json_data = []
-        for i, centroid in enumerate(valid_centroids):
+        for i, (centroid, corners) in enumerate(zip(valid_centroids, valid_corners)):
             json_data.append({
                 "box_id": i,
-                "centroid": centroid.tolist()
+                "centroid": centroid.tolist(),
+                "corners": corners.tolist()
             })
         
         json_path = ply_path.with_suffix('.json')
@@ -231,7 +290,7 @@ def main():
 
         # 7. Visualize
         # We pass the original clean pcd to show context (floor)
-        visualize_results(pcd_clean, valid_boxes, valid_centroids)
+        visualize_results(pcd_clean, valid_boxes, valid_centroids, valid_corners)
 
 if __name__ == "__main__":
     main()
