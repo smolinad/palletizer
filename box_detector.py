@@ -4,6 +4,7 @@ import pyvista as pv
 from pathlib import Path
 import glob
 import os
+import json
 
 def load_point_cloud(path):
     """Load a point cloud from a PLY file."""
@@ -30,59 +31,73 @@ def remove_floor(pcd, distance_threshold=0.01, ransac_n=3, num_iterations=1000):
     
     return objects_pcd, floor_pcd
 
-def cluster_boxes(pcd, eps=0.02, min_points=50):
-    """Cluster points into individual objects using DBSCAN."""
-    labels = np.array(pcd.cluster_dbscan(eps=eps, min_points=min_points, print_progress=False))
+def cluster_boxes(pcd, eps=0.1, min_points=100):
+    """
+    Cluster points into individual box tops using normals and DBSCAN.
+    1. Compute normals.
+    2. Filter points with normals aligned with Z-axis.
+    3. Cluster the remaining points.
+    """
+    # Estimate normals
+    pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+    
+    # Orient normals to point towards camera or consistent direction if needed
+    # But for now, we just check alignment with Z (0, 0, 1)
+    normals = np.asarray(pcd.normals)
+    
+    # Check alignment with Z axis
+    # We want normals that are roughly (0, 0, 1) or (0, 0, -1)
+    # But since we removed the floor, and boxes are on the floor, top faces should point UP.
+    # Assuming Z is up.
+    z_axis = np.array([0, 0, 1])
+    
+    # Dot product
+    dots = np.dot(normals, z_axis)
+    
+    # Filter: keep points where normal is roughly parallel to Z
+    # Threshold: cos(angle). 
+    # 0.95 is about 18 degrees.
+    top_face_indices = np.where(np.abs(dots) > 0.95)[0]
+    
+    if len(top_face_indices) == 0:
+        print("No top face points found.")
+        return []
+        
+    top_face_pcd = pcd.select_by_index(top_face_indices)
+    print(f"Filtered {len(top_face_indices)} points aligned with Z-axis")
+    
+    # Now cluster these top face points
+    # We can use a larger eps to ensure we don't split a single face
+    labels = np.array(top_face_pcd.cluster_dbscan(eps=eps, min_points=min_points, print_progress=False))
     
     max_label = labels.max()
-    print(f"Point cloud has {max_label + 1} clusters")
+    print(f"Found {max_label + 1} potential box tops")
     
     boxes = []
     for i in range(max_label + 1):
         # Extract points for this cluster
         cluster_indices = np.where(labels == i)[0]
-        cluster_pcd = pcd.select_by_index(cluster_indices)
+        
+        # Filter out small clusters
+        if len(cluster_indices) < 200: 
+            continue
+            
+        cluster_pcd = top_face_pcd.select_by_index(cluster_indices)
         boxes.append(cluster_pcd)
         
     return boxes
 
 def get_top_face_centroid(box_pcd):
     """
-    Calculate the centroid of the top face of a box.
-    Assumes the box is roughly aligned with gravity (Z-axis).
+    Calculate the centroid of the top face.
+    Since 'box_pcd' is now already just the top face points, 
+    we can simply take the mean.
     """
-    # 1. Compute Oriented Bounding Box (OBB)
-    obb = box_pcd.get_oriented_bounding_box()
-    
-    # 2. Get points and rotate them to be axis-aligned with the OBB
-    # This makes finding the "top" face easier if the box is rotated
-    # However, for simple top-face detection based on Z height in world frame,
-    # we might just look at the highest points if the boxes are flat on the floor.
-    
-    # Let's try a simpler approach first: Filter points with high Z values relative to the box's height.
     points = np.asarray(box_pcd.points)
     if len(points) == 0:
         return None
-
-    z_values = points[:, 2]
-    max_z = np.max(z_values)
-    min_z = np.min(z_values)
-    height = max_z - min_z
-    
-    # Define "top face" as points within top 10% of height (or a fixed threshold)
-    # Adjust this threshold as needed
-    top_threshold = max_z - 0.02 # 2cm from top
-    
-    top_indices = np.where(z_values > top_threshold)[0]
-    
-    if len(top_indices) == 0:
-        # Fallback if box is very thin or something
-        return np.mean(points, axis=0)
         
-    top_points = points[top_indices]
-    centroid = np.mean(top_points, axis=0)
-    
-    return centroid
+    return np.mean(points, axis=0)
 
 def visualize_results(original_pcd, boxes, centroids):
     """Visualize the results using PyVista."""
@@ -115,7 +130,6 @@ def visualize_results(original_pcd, boxes, centroids):
         # Add centroid
         if i < len(centroids) and centroids[i] is not None:
             plotter.add_mesh(pv.Sphere(radius=0.01, center=centroids[i]), color='white', label=f"Centroid {i}")
-            plotter.add_point_labels([centroids[i]], [f"Top Center\n{centroids[i]}"], point_size=10, font_size=16, always_visible=True)
 
     plotter.add_legend()
     plotter.add_axes()
@@ -157,7 +171,21 @@ def main():
             centroids.append(centroid)
             print(f"  Box centroid: {centroid}")
             
-        # 6. Visualize
+        # 6. Save Centroids to JSON
+        json_data = []
+        for i, centroid in enumerate(centroids):
+            if centroid is not None:
+                json_data.append({
+                    "box_id": i,
+                    "centroid": centroid.tolist()
+                })
+        
+        json_path = ply_path.with_suffix('.json')
+        with open(json_path, 'w') as f:
+            json.dump(json_data, f, indent=4)
+        print(f"Saved centroids to {json_path}")
+
+        # 7. Visualize
         # We pass the original clean pcd to show context (floor)
         visualize_results(pcd_clean, boxes, centroids)
 
