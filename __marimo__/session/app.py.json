@@ -1,0 +1,112 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.18.1"
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "d66e24b8298bb38b36a902cc7f0f2070",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"box-detector-parameter-tuning\">Box Detector Parameter Tuning</h1>\n<span class=\"paragraph\">Adjust parameters to refine clustering.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "MJUe",
+      "code_hash": "b7decf11ed8f6befe4500d28b7fed0b4",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "8aa71a605d4ba6d8de1bea5a398de4e0",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "92094718e9c7af9d160dc894c8b71bc1",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "b5150a33aac6a8573877636a88017fed",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<div style='display: flex;flex: 1;flex-direction: column;justify-content: flex-start;align-items: normal;flex-wrap: nowrap;gap: 0.5rem'><marimo-ui-element object-id='vblA-0' random-id='cae59db2-5554-779f-b7de-0dc990bca42d'><marimo-file data-initial-value='[]' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;Upload PLY File&lt;/span&gt;&lt;/span&gt;&quot;' data-filetypes='[&quot;.ply&quot;]' data-multiple='false' data-kind='&quot;button&quot;' data-max_size='100000000'></marimo-file></marimo-ui-element><div style='display: flex;flex: 1;flex-direction: row;justify-content: space-between;align-items: normal;flex-wrap: nowrap;gap: 0.5rem'><marimo-ui-element object-id='bkHC-0' random-id='72d78bda-40fe-fa45-7f88-2114c8b7e283'><marimo-slider data-initial-value='0.015' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;DBSCAN eps (m)&lt;/span&gt;&lt;/span&gt;&quot;' data-start='0.005' data-stop='0.05' data-step='0.001' data-steps='[]' data-debounce='false' data-disabled='false' data-orientation='&quot;horizontal&quot;' data-show-value='false' data-include-input='false' data-full-width='false'></marimo-slider></marimo-ui-element><marimo-ui-element object-id='bkHC-1' random-id='b8c5fc55-befa-35d6-5bed-0c99f4143296'><marimo-slider data-initial-value='10' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;Min Points&lt;/span&gt;&lt;/span&gt;&quot;' data-start='5' data-stop='50' data-step='1' data-steps='[]' data-debounce='false' data-disabled='false' data-orientation='&quot;horizontal&quot;' data-show-value='false' data-include-input='false' data-full-width='false'></marimo-slider></marimo-ui-element></div><div style='display: flex;flex: 1;flex-direction: row;justify-content: space-between;align-items: normal;flex-wrap: nowrap;gap: 0.5rem'><marimo-ui-element object-id='bkHC-2' random-id='edb34030-543e-57c1-eb20-e02ce37d7983'><marimo-slider data-initial-value='0.005' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;Floor Pre-Filter (m)&lt;/span&gt;&lt;/span&gt;&quot;' data-start='0.001' data-stop='0.02' data-step='0.001' data-steps='[]' data-debounce='false' data-disabled='false' data-orientation='&quot;horizontal&quot;' data-show-value='false' data-include-input='false' data-full-width='false'></marimo-slider></marimo-ui-element><marimo-ui-element object-id='bkHC-3' random-id='0b97722c-ddae-766d-a6e1-7a6b3ec63fdf'><marimo-slider data-initial-value='0.015' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;Radius Outlier R&lt;/span&gt;&lt;/span&gt;&quot;' data-start='0.005' data-stop='0.05' data-step='0.001' data-steps='[]' data-debounce='false' data-disabled='false' data-orientation='&quot;horizontal&quot;' data-show-value='false' data-include-input='false' data-full-width='false'></marimo-slider></marimo-ui-element></div></div>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "PKri",
+      "code_hash": "cfffe128da0e9e10085536642b88ea9e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Xref",
+      "code_hash": "543393531c14498a5364e61036ef5686",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "SFPL",
+      "code_hash": "f89c3c479d800715e438907440244f2c",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<iframe srcdoc='&lt;!DOCTYPE html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n  &lt;head&gt;\n    &lt;base href=&#x27;http://localhost:2720/mpl/4392458704/&#x27; /&gt;\n    &lt;link rel=&quot;stylesheet&quot; href=&quot;http://localhost:2720/mpl/4392458704/_static/css/page.css&quot; type=&quot;text/css&quot; /&gt;\n    &lt;link rel=&quot;stylesheet&quot; href=&quot;http://localhost:2720/mpl/4392458704/_static/css/boilerplate.css&quot; type=&quot;text/css&quot; /&gt;\n    &lt;link rel=&quot;stylesheet&quot; href=&quot;http://localhost:2720/mpl/4392458704/_static/css/fbm.css&quot; type=&quot;text/css&quot; /&gt;\n    &lt;link rel=&quot;stylesheet&quot; href=&quot;http://localhost:2720/mpl/4392458704/_static/css/mpl.css&quot; type=&quot;text/css&quot; /&gt;\n    &lt;link rel=&quot;stylesheet&quot; href=&quot;http://localhost:2720/mpl/4392458704/custom.css&quot; type=&quot;text/css&quot; /&gt;\n    &lt;script src=&quot;http://localhost:2720/mpl/4392458704/mpl.js&quot;&gt;&lt;/script&gt;\n\n    &lt;script&gt;\n      function ondownload(figure, format) {\n        window.open(&#x27;download.&#x27; + format + &#x27;?figure=&#x27; + figure.id, &#x27;_blank&#x27;);\n      };\n\n      function ready(fn) {\n        if (document.readyState != &quot;loading&quot;) {\n          fn();\n        } else {\n          document.addEventListener(&quot;DOMContentLoaded&quot;, fn);\n        }\n      }\n\n      ready(\n        function() {\n          var websocket_type = mpl.get_websocket_type();\n          var websocket = new websocket_type(&quot;ws://localhost:2720/mpl/10869/ws?figure=4392458704&quot;);\n\n          // mpl.figure creates a new figure on the webpage.\n          var fig = new mpl.figure(\n              // A unique numeric identifier for the figure\n              4392458704,\n              // A websocket object\n              websocket,\n              // A function called when a file type is selected for download\n              ondownload,\n              // The HTML element in which to place the figure\n              document.getElementById(&quot;figure&quot;));\n        }\n      );\n    &lt;/script&gt;\n\n    &lt;title&gt;marimo&lt;/title&gt;\n  &lt;/head&gt;\n\n  &lt;body&gt;\n    &lt;div id=&quot;figure&quot;&gt;&lt;/div&gt;\n  &lt;/body&gt;\n&lt;/html&gt;' width='100%' height='550px' onload='__resizeIframe(this)' frameborder='0'></iframe>"
+          }
+        }
+      ],
+      "console": []
+    }
+  ]
+}

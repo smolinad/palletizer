@@ -1,63 +1,56 @@
-# Box Detection and Centroid Calculation
+# Palletizer Box Detection
 
-This project implements a robust algorithm to detect cardboard boxes from 3D point cloud data, calculate their centroids, and estimate their 3D bounding rectangles.
+This project implements a 3D box detection pipeline using Point Cloud data (PLY files). It includes a standalone script and an interactive Marimo app for parameter tuning.
 
-## Algorithm Description
+## 1. Environment Setup
 
-Let the input point cloud be a set of points $P = \{p_1, p_2, \dots, p_N\} \subset \mathbb{R}^3$. The goal is to identify a set of boxes $B = \{b_1, b_2, \dots, b_M\}$, where each $b_i$ is defined by its centroid $c_i$ and its 3D corners.
+This project uses `uv` for dependency management.
 
-### 1. Floor Removal (Two-Stage Filtering)
-We assume the floor is the dominant plane in the scene. We model the floor as a plane $\Pi_{\mathrm{floor}}$:
-$$ n_{\mathrm{floor}} \cdot x + d_{\mathrm{floor}} = 0 $$
-where $n_{\mathrm{floor}}$ is the floor normal and $d_{\mathrm{floor}}$ is the distance from the origin.
+### Initialize Environment
+If you haven't already set up the environment:
 
-**Stage 1: Pre-Cluster Filtering**
-Using RANSAC, we find the plane parameters. To strictly separate objects from the floor and break "bridges" caused by noise, we remove all points within a strict threshold $\tau_{\mathrm{floor\_pre}} = 0.005$m (5mm) of the plane:
-$$ P_{\mathrm{obj}} = \{p \in P \mid |n_{\mathrm{floor}} \cdot p + d_{\mathrm{floor}}| > \tau_{\mathrm{floor\_pre}}\} $$
+```bash
+# 1. Install uv (if not installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+#or 
+pip install uv
 
-### 2. Top Face Detection (Normal Filtering)
-For each point $p \in P_{\mathrm{obj}}$, we estimate its surface normal $n_p$. Since boxes are resting on the floor, their top faces should be parallel to the floor plane. We filter points based on the alignment of their normal with the floor normal:
-$$ P_{\mathrm{top}} = \{p \in P_{\mathrm{obj}} \mid |n_p \cdot n_{\mathrm{floor}}| > \tau_{\mathrm{angle}}\} $$
-where $\tau_{\mathrm{angle}} \approx 0.9$ (corresponding to $\approx 25^\circ$ deviation).
+# 2. Clone the repo 
+git clone --depth 1 https://github.com/smolinad/palletizer.git
 
-### 3. Pre-Clustering Cleanup (Radius Outlier Removal)
-To prevent noise from bridging separate clusters, we apply a Radius Outlier Removal filter to $P_{\mathrm{top}}$:
-$$ P_{\mathrm{clean}} = \{p \in P_{\mathrm{top}} \mid |N_r(p)| \ge k_{\mathrm{radius}}\} $$
-where $N_r(p)$ is the set of neighbors within radius $r$ ($r=0.02$m, $k_{\mathrm{radius}}=15$).
+# 3. Initialize project (if starting fresh)
+uv init
+```
 
-### 4. Clustering (DBSCAN)
-We partition $P_{\mathrm{clean}}$ into clusters $\{C_1, C_2, \dots, C_M\}$ using DBSCAN (Density-Based Spatial Clustering of Applications with Noise):
-$$ C_i = \text{DBSCAN}(P_{\mathrm{clean}}, \epsilon=0.05, \text{min\_points}=30) $$
+## 2. Running the Code
 
-### 5. Cluster Refinement
-For each cluster $C_i$, we apply further refinement:
+### Simplified Box Detector
+Run the simplified script to process all PLY files in the `data` directory:
 
-#### a. Statistical Outlier Removal
-We remove points that are statistical outliers based on the distribution of neighbor distances:
-$$ C_i' = \{p \in C_i \mid \bar{d}_k(p) < \mu_k + \alpha \sigma_k\} $$
-where $\bar{d}_k(p)$ is the mean distance to $k$ nearest neighbors, and $\alpha=2.0$.
+```bash
+uv run box_detector.py
+```
+This will:
+1. Load each PLY file.
+2. Detect boxes using the configured algorithm.
+3. Save centroids to a `.json` file (e.g., `data/file.json`).
+4. Open a 3D visualization window (PyVista) for each file. Close the window to proceed to the next file.
 
-#### b. 3D Bounding Rectangle (Rotating Calipers)
-We project the points $C_i'$ onto the plane parallel to the floor. Let $R$ be the rotation matrix that aligns $n_{\mathrm{floor}}$ with the Z-axis. The projected points are:
-$$ P'_{\mathrm{2D}} = \{ (Rp)_x, (Rp)_y \mid p \in C_i' \} $$
-We compute the Minimum Area Rectangle using the Rotating Calipers algorithm:
-$$ \text{Rect}_i = \text{minAreaRect}(P'_{\mathrm{2D}}) $$
-This gives us the center, dimensions $(w, h)$, and rotation angle in the 2D plane.
+### Interactive Parameter Tuning (Marimo App)
+To interactively tune parameters (like clustering radius, floor threshold) and visualize results in real-time:
 
-### 6. Filtering Candidates
-We reject candidate clusters based on several geometric criteria:
+```bash
+uv run marimo edit app.py
+```
+This will open a web browser where you can:
+1. Select a PLY file from the dropdown.
+2. Adjust sliders for `DBSCAN eps`, `Min Points`, etc.
+3. View the 3D result (Matplotlib) instantly.
+   - **Note**: The 3D plot is interactive (zoom/pan enabled).
 
-*   **Stage 2: Post-Cluster Floor Check**: To ensure no floor noise is mistaken for a box, we reject any cluster that contains points too close to the floor:
-    $$ \min_{p \in C_i'} |n_{\mathrm{floor}} \cdot p + d_{\mathrm{floor}}| > \tau_{\mathrm{floor\_post}} $$
-    where $\tau_{\mathrm{floor\_post}} = 0.01$m (1cm).
-*   **Dimensions**: $w > 0.03$m and $h > 0.03$m.
-*   **Rectangularity**: To reject irregular shapes (e.g., merged outliers), we compare the area of the Convex Hull to the Minimum Area Rectangle:
-    $$ \text{Rectangularity} = \frac{\text{Area}(\text{ConvexHull}(P'_{\mathrm{2D}}))}{\text{Area}(\text{Rect}_i)} $$
-    We require $\text{Rectangularity} > 0.7$.
-*   **Density**: To reject sparse ghost clusters:
-    $$ \text{Density} = \frac{|C_i'|}{\text{Area}(\text{Rect}_i)} > 2000 \text{ pts}/m^2 $$
-*   **Height**: The centroid distance to the floor plane must be sufficient:
-    $$ \text{dist}(c_i, \Pi_{\mathrm{floor}}) > 0.01 \text{m} $$
+## 3. Project Structure
 
-### 7. Output
-For valid clusters, the 2D rectangle is transformed back to 3D space using $R^{-1}$ to obtain the final 3D corners and centroid.
+- `box_detector.py`: Main script (simplified) for batch processing.
+- `app.py`: Marimo notebook for interactive tuning.
+- `src/box_lib.py`: Core algorithms (floor removal, clustering, box fitting).
+- `data/`: Directory containing `.ply` files.
