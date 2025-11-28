@@ -18,6 +18,9 @@ pip install uv
 # 2. Clone the repo 
 git clone --depth 1 https://github.com/smolinad/palletizer.git
 
+# 3. Change directory to repo
+cd palletizer
+
 # 3. Initialize project (if starting fresh)
 uv init
 ```
