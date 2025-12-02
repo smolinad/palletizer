@@ -1,5 +1,6 @@
 # Palletizer Box Detection
 
+![Demo video](/assets/demo.gif)
 This project implements a 3D box detection pipeline using Point Cloud data (PLY files). It includes a standalone script and an interactive Marimo app for parameter tuning.
 
 ## 1. Environment Setup
